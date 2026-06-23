@@ -1,0 +1,1798 @@
+{
+  "name": "jira assistant copy",
+  "nodes": [
+    {
+      "parameters": {
+        "jiraVersion": "serverPat",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "jql": "project = MIM AND sprint in openSprints() ORDER BY updated DESC"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        64
+      ],
+      "id": "70c14329-2f5e-45fc-9558-0bac97e8bdd1",
+      "name": "Get many issues",
+      "credentials": {
+        "jiraSoftwareServerPatApi": {
+          "id": "5M211njPu5jUDT6C",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "grouped = {}\n\nfor item in _items:\n    issue = item[\"json\"]\n\n    fields = issue.get(\"fields\", {})\n    status_data = fields.get(\"status\", {})\n\n    status = status_data.get(\"name\", \"Unknown\")\n\n    if status not in grouped:\n        grouped[status] = {\n            \"status\": status,\n            \"totalIssues\": 0,\n            \"issues\": []\n        }\n\n    grouped[status][\"issues\"].append({\n        \"key\": issue.get(\"key\"),\n        \"summary\": fields.get(\"summary\"),\n        \"description\": fields.get(\"description\"),\n        \"assignee\": (\n            fields.get(\"assignee\", {}) or {}\n        ).get(\"displayName\", \"Unassigned\"),\n        \"issueType\": fields.get(\"issuetype\", {}).get(\"name\"),\n        \"priority\": fields.get(\"priority\", {}).get(\"name\"),\n        # \"created\": fields.get(\"created\"),\n        # \"updated\": fields.get(\"updated\"),\n        # \"sprint\": fields.get(\"customfield_10107\", [])\n    })\n\n    grouped[status][\"totalIssues\"] += 1\n\nreturn [{\"json\": value} for value in grouped.values()]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        64
+      ],
+      "id": "e16921be-0c03-456f-8982-36f121782e9e",
+      "name": "Code in Python"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        976,
+        144
+      ],
+      "id": "d7d664df-5d29-40eb-81f8-d2ea889b2388",
+      "name": "OpenAI Chat Model1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            },
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                6
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -480,
+        64
+      ],
+      "id": "71de6d14-eb95-4a21-92a2-65d96f043b62",
+      "name": "Schedule Trigger1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "2493e2a1-49d3-4abe-bd6c-32c6fed61c52",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "To Do",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "To Do"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "06444cc6-4d89-4dec-b381-f8ba2edd7b13",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "In Progress",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "In Progress"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "47303c80-8e40-4678-9a23-176c847007c2",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "Done",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Done"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        48
+      ],
+      "id": "3bbbcb5e-9faa-4b77-89e8-47f6d97bcd1b",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jiraVersion": "serverPat",
+        "operation": "get",
+        "issueKey": "={{ $json.key }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        448,
+        64
+      ],
+      "id": "1286064f-2633-4af5-b5fd-c014bccdcdb0",
+      "name": "Get an issue",
+      "credentials": {
+        "jiraSoftwareServerPatApi": {
+          "id": "5M211njPu5jUDT6C",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "# Loop over input items and add a new field called 'my_new_field' to the JSON of each one\nfor item in _items:\n  return item[\"json\"][\"issues\"]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        64
+      ],
+      "id": "50ed7398-4046-4486-94e6-c4388e21af25",
+      "name": "Code in Python1"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from datetime import datetime, timezone, timedelta\n\nCUT_OFF = datetime.now(timezone.utc) - timedelta(hours=24)\n\ndef parse_jira_datetime(value):\n    if not value:\n        return None\n\n    s = str(value).strip()\n\n    # Jira format examples:\n    # 2026-06-20T14:43:25.006+0000\n    # 2026-06-20T14:43:25.006Z\n    if s.endswith(\"Z\"):\n        s = s[:-1] + \"+00:00\"\n\n    # Convert +0000 -> +00:00\n    if len(s) >= 5 and (s[-5] in [\"+\", \"-\"]) and s[-3] != \":\":\n        s = s[:-2] + \":\" + s[-2:]\n\n    try:\n        dt = datetime.fromisoformat(s)\n    except ValueError:\n        return None\n\n    if dt.tzinfo is None:\n        dt = dt.replace(tzinfo=timezone.utc)\n\n    return dt.astimezone(timezone.utc)\n\ndef clean_text(value):\n    if value is None:\n        return \"\"\n    return \" \".join(str(value).split())\n\ndef format_worklog(wl):\n    author = (wl.get(\"author\") or {}).get(\"displayName\") or (wl.get(\"author\") or {}).get(\"name\") or \"Unknown\"\n    created = parse_jira_datetime(wl.get(\"created\") or wl.get(\"updated\") or wl.get(\"started\"))\n    comment = clean_text(wl.get(\"comment\", \"\"))\n    time_spent = wl.get(\"timeSpent\", \"\")\n    started = wl.get(\"started\", \"\")\n\n    return {\n        \"created\": created.isoformat() if created else \"\",\n        \"author\": author,\n        \"started\": started,\n        \"timeSpent\": time_spent,\n        \"timeSpentSeconds\": wl.get(\"timeSpentSeconds\", 0),\n        \"comment\": comment,\n    }\n\ndef build_context(issue):\n    fields = issue.get(\"fields\", {})\n    issue_key = issue.get(\"key\", \"\")\n\n    assignee = fields.get(\"assignee\").get(\"name\")\n\n  \n    worklogs = (fields.get(\"worklog\") or {}).get(\"worklogs\", [])\n    recent_worklogs = []\n\n    for wl in worklogs:\n        ts = parse_jira_datetime(wl.get(\"updated\") or wl.get(\"created\") or wl.get(\"started\"))\n        if ts and ts >= CUT_OFF:\n            recent_worklogs.append((ts, wl))\n\n    recent_worklogs.sort(key=lambda x: x[0])\n\n    lines = [\n        f\"Issue Key: {issue_key}\",\n        \"Worklogs from the last 24 hours:\",\n    ]\n\n    formatted_worklogs = []\n    if recent_worklogs:\n        for ts, wl in recent_worklogs:\n            fw = format_worklog(wl)\n            formatted_worklogs.append(fw)\n            lines.append(\n                f\"- {fw['created']} | {fw['author']} | {fw['timeSpent']} | {fw['comment']}\"\n            )\n    else:\n        lines.append(\"None\")\n\n    return issue_key, \"\\n\".join(lines), formatted_worklogs, assignee\n\n# Deduplicate by issue key\nmerged = {}\n\nfor item in _items:\n    issue = item.get(\"json\", {})\n    key = issue.get(\"key\")\n    if not key:\n        continue\n\n    if key not in merged:\n        merged[key] = issue\n    else:\n        existing = merged[key]\n        existing_fields = existing.setdefault(\"fields\", {})\n        existing_worklog = existing_fields.setdefault(\"worklog\", {}).setdefault(\"worklogs\", [])\n\n        seen_ids = {w.get(\"id\") for w in existing_worklog}\n        incoming_worklogs = (issue.get(\"fields\") or {}).get(\"worklog\", {}).get(\"worklogs\", [])\n\n        for wl in incoming_worklogs:\n            if wl.get(\"id\") not in seen_ids:\n                existing_worklog.append(wl)\n                seen_ids.add(wl.get(\"id\"))\n\noutput_items = []\n\nfor key, issue in merged.items():\n    issue_key, context_text, recent_worklogs, assignee = build_context(issue)\n\n    output_items.append({\n        \"json\": {\n            \"sprint_id\" : \"\",\n            \"assignee\" : assignee,\n            \"issue_key\": issue_key,\n            \"user_message\": context_text,\n            \"recent_worklogs\": recent_worklogs,\n            \"recent_worklog_count\": len(recent_worklogs),\n        }\n    })\n\nreturn output_items"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        64
+      ],
+      "id": "9fef706c-b90b-469c-bb90-8b4bcfec1a4a",
+      "name": "Code in Python2"
+    },
+    {
+      "parameters": {
+        "url": "http://jira:8080/rest/agile/1.0/board/1/sprint",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "closed"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer MDQ3MzgyOTgyMzk1OvifX2VngQSpGHvaRkiMvVnr0N8K"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -192,
+        832
+      ],
+      "id": "74e4f607-b2ce-4164-a413-03d667d4e0f0",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from datetime import datetime\n\nsprints = _items[0][\"json\"][\"values\"]\n\nlatest_sprint = max(\n    sprints,\n    key=lambda s: datetime.fromisoformat(\n        s[\"completeDate\"].replace(\"Z\", \"+00:00\")\n    )\n)\n\nreturn [\n    {\n        \"json\": {\n            \"sprintId\": latest_sprint[\"id\"],\n            \"sprintName\": latest_sprint[\"name\"],\n            \"boardId\": latest_sprint[\"originBoardId\"],\n            \"startDate\": latest_sprint[\"startDate\"],\n            \"endDate\": latest_sprint[\"endDate\"],\n            \"completeDate\": latest_sprint[\"completeDate\"],\n            \"goal\": latest_sprint.get(\"goal\", \"\")\n        }\n    }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        832
+      ],
+      "id": "6221b540-0196-4ef7-ad1b-d5188cbce3fb",
+      "name": "get last sprint"
+    },
+    {
+      "parameters": {
+        "jiraVersion": "serverPat",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "jql": "=sprint =  {{ $json.sprintId }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        160,
+        832
+      ],
+      "id": "132bcaef-048a-4094-a35c-b3bbaca45ed1",
+      "name": "Get last sprint issues",
+      "credentials": {
+        "jiraSoftwareServerPatApi": {
+          "id": "5M211njPu5jUDT6C",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "grouped = {}\n\nfor item in _items:\n    issue = item[\"json\"]\n\n    fields = issue.get(\"fields\", {})\n    assignee_data = fields.get(\"assignee\")\n\n    assignee = \"Unassigned\"\n\n    if assignee_data:\n        assignee = (\n            assignee_data.get(\"name\")\n            or \"Unassigned\"\n        )\n\n    if assignee not in grouped:\n        grouped[assignee] = {\n            \"assignee\": assignee,\n            \"totalIssues\": 0,\n            \"issues\": []\n        }\n# customfield_10110\n    grouped[assignee][\"issues\"].append({\n        \"key\": issue.get(\"key\"),\n        \"summary\": fields.get(\"summary\"),\n        \"description\": fields.get(\"description\"),\n        \"status\": fields.get(\"status\", {}).get(\"name\"),\n        \"issueType\": fields.get(\"issuetype\", {}).get(\"name\"),\n        \"priority\": fields.get(\"priority\", {}).get(\"name\"),\n        \"priority\": fields.get(\"priority\", {}).get(\"name\"),\n        # \"created\": fields.get(\"created\"),\n        # \"updated\": fields.get(\"updated\"),\n        # \"sprint\": fields.get(\"customfield_10107\", [])\n    })\n    if fields.get(\"issuetype\", {}).get(\"name\") == \"Story\":\n      grouped[assignee][\"issues\"][-1][\"story_points\"] = fields.get(\"customfield_10110\")\n    grouped[assignee][\"totalIssues\"] += 1\n\nreturn [{\"json\": value} for value in grouped.values()]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        832
+      ],
+      "id": "020a7d68-eda9-44fd-a9c2-a004db6e85dd",
+      "name": "Code in Python3"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "logs_review"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "sprint_id": 0,
+            "log_quality": 0
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sprint_id",
+              "displayName": "sprint_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "issue_key",
+              "displayName": "issue_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "log_quality",
+              "displayName": "log_quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1840,
+        -48
+      ],
+      "id": "953f4ce0-1589-4bbe-be78-1b00ddb79888",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://jira:8080/rest/agile/1.0/board/1/sprint",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "active"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer MDQ3MzgyOTgyMzk1OvifX2VngQSpGHvaRkiMvVnr0N8K"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        288,
+        -128
+      ],
+      "id": "d5a16d2e-6464-4819-8bc3-44866c92c8b4",
+      "name": "get active sprint id"
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "query": "SELECT\n    i1.sprint_id,\n    i2.assignee,\n    i2.issue_key,\n    i2.user_message\nFROM input2 i2\nCROSS JOIN input1 i1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        832,
+        -48
+      ],
+      "id": "1d1fab85-8713-4533-b924-e8780983b1b9",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"sprint_id\": {{ $json.values[0].id }},\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        -128
+      ],
+      "id": "e69bbfe5-ee0d-487e-9649-c05cced59b77",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\n\ncleaned_items = []\n\nfor item in _items:\n    output = item[\"json\"][\"output\"]\n\n    try:\n        # Remove ```json and ``` wrappers\n        cleaned = output.replace(\"```json\", \"\").replace(\"```\", \"\").strip()\n\n        # Convert string to dict\n        data = json.loads(cleaned)\n\n        # Replace the whole json with parsed data\n        item[\"json\"] = data\n\n        # Keep only successful items\n        cleaned_items.append(item)\n\n    except Exception:\n        # Skip invalid items\n        continue\n\nreturn cleaned_items"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        -48
+      ],
+      "id": "209b684b-08c9-4781-a879-d15c2e61845e",
+      "name": "Code in Python4"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- DROP TABLE IF EXISTS public.logs_review;\nSELECT * FROM public.logs_review;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        208,
+        1184
+      ],
+      "id": "039704ac-a4ce-42df-8ef0-bba486cd6155",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "assignees = {}\n\nfor item in _items:\n    assignee = item[\"json\"][\"assignee\"]\n    score = float(item[\"json\"][\"log_quality\"])\n\n    if assignee not in assignees:\n        assignees[assignee] = {\n            \"sum\": 0,\n            \"count\": 0\n        }\n\n    assignees[assignee][\"sum\"] += score\n    assignees[assignee][\"count\"] += 1\n\nresult = {}\n\nfor assignee, data in assignees.items():\n    result[assignee] = round(data[\"sum\"] / data[\"count\"], 2)\n\nreturn [{\"log_quality\": result}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        1184
+      ],
+      "id": "824a4af2-f754-4fe1-815e-8d7135b88d3f",
+      "name": "Code in Python5"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        592,
+        1008
+      ],
+      "id": "3dddb0ba-432c-4439-9eab-5bd35f0d5f47",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "PlblH4d6ZPhUknDT",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\n\nmerged_result = {}\n\nfor item in _items:\n    output = item[\"json\"][\"output\"]\n\n    try:\n        # Remove markdown wrappers if they exist\n        cleaned = output.replace(\"```json\", \"\").replace(\"```\", \"\").strip()\n\n        # Convert string to dict\n        data = json.loads(cleaned)\n\n        # Merge all results into one dictionary\n        merged_result.update(data)\n\n    except Exception:\n        # Skip invalid items\n        continue\n\nreturn [\n    {\n        \"json\": {\n            \"discription_quality\": merged_result\n        }\n    }\n]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        832
+      ],
+      "id": "2137c608-5b70-48be-b1f3-e304eb99f167",
+      "name": "Code in Python6"
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1088,
+        1008
+      ],
+      "id": "915b17d6-1ed4-4d5b-9dad-1fffdeb9c150",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "DONE_STATUSES = [\"Done\", \"Closed\", \"Resolved\"]\n\nresults = []\n\ntotal_sprint_issues = 0\ntotal_done_issues = 0\n\ntotal_story_points = 0\ncompleted_story_points = 0\n\nall_in_progress = 0\nall_todo = 0\n\nfor item in _items:\n    data = item[\"json\"]\n\n    assignee = data.get(\"assignee\")\n    issues = data.get(\"issues\", [])\n\n    total_issues = len(issues)\n\n    done_issues = 0\n    in_progress_issues = 0\n    todo_issues = 0\n\n    contributor_story_points = 0\n    contributor_completed_story_points = 0\n\n    healthy_issues = 0\n\n    issue_summaries = []\n\n    for issue in issues:\n        status = issue.get(\"status\", \"Unknown\")\n\n        # IMPORTANT:\n        # None means this issue is not a Story / has no estimation\n        story_points = issue.get(\"story_points\")\n\n        total_sprint_issues += 1\n\n        issue_health = True\n\n        # Count only issues with real story points\n        if story_points is not None:\n            contributor_story_points += story_points\n            total_story_points += story_points\n\n        # Status metrics\n        if status in DONE_STATUSES:\n            done_issues += 1\n            total_done_issues += 1\n\n            # Count completed story points only if they exist\n            if story_points is not None:\n                contributor_completed_story_points += story_points\n                completed_story_points += story_points\n\n        elif status == \"In Progress\":\n            in_progress_issues += 1\n            all_in_progress += 1\n\n        elif status == \"To Do\":\n            todo_issues += 1\n            all_todo += 1\n            issue_health = False\n\n        # Healthy issue logic\n        if status == \"To Do\":\n            issue_health = False\n\n        if issue_health:\n            healthy_issues += 1\n\n        issue_summaries.append({\n            \"key\": issue.get(\"key\"),\n            \"summary\": issue.get(\"summary\"),\n            \"status\": status,\n            \"issue_type\": issue.get(\"issueType\"),\n            \"story_points\": story_points\n        })\n\n    # Contributor completion rate\n    completion_rate = 0\n\n    if total_issues > 0:\n        completion_rate = round(\n            (done_issues / total_issues) * 100,\n            2\n        )\n\n    # Healthy issue percentage\n    healthy_rate = 0\n\n    if total_issues > 0:\n        healthy_rate = round(\n            (healthy_issues / total_issues) * 100,\n            2\n        )\n\n    # Risk scoring\n    risk_score = 0\n\n    risk_score += todo_issues * 15\n    risk_score += in_progress_issues * 5\n\n    if completion_rate < 30:\n        risk_score += 20\n\n    if healthy_rate < 50:\n        risk_score += 20\n\n    # Risk level\n    if risk_score >= 50:\n        risk_level = \"HIGH\"\n\n    elif risk_score >= 25:\n        risk_level = \"MEDIUM\"\n\n    else:\n        risk_level = \"LOW\"\n\n    # Contributor output\n    results.append({\n        \"json\": {\n            \"assignee\": assignee,\n\n            \"metrics\": {\n                \"total_issues\": total_issues,\n                \"done_issues\": done_issues,\n                \"in_progress_issues\": in_progress_issues,\n                \"todo_issues\": todo_issues,\n\n                \"completion_rate\": completion_rate,\n\n                \"story_points\": contributor_story_points,\n                \"completed_story_points\": contributor_completed_story_points,\n\n                \"healthy_issues_rate\": healthy_rate,\n\n                \"risk_score\": risk_score,\n                \"risk_level\": risk_level\n            },\n\n            \"issues\": issue_summaries\n        }\n    })\n\n# Sprint completion rate\nsprint_completion_rate = 0\n\nif total_sprint_issues > 0:\n    sprint_completion_rate = round(\n        (total_done_issues / total_sprint_issues) * 100,\n        2\n    )\n\n# Story point completion rate\nstory_point_completion_rate = 0\n\nif total_story_points > 0:\n    story_point_completion_rate = round(\n        (completed_story_points / total_story_points) * 100,\n        2\n    )\n\n# Sprint health score\nsprint_health_score = 0\n\nif total_sprint_issues > 0:\n    sprint_health_score = round(\n        (\n            sprint_completion_rate * 0.5\n            +\n            story_point_completion_rate * 0.3\n            +\n            (\n                (\n                    total_sprint_issues - all_todo\n                ) / total_sprint_issues\n            ) * 20\n        ),\n        2\n    )\n\n# Sprint-level summary\nresults.append({\n    \"json\": {\n        \"sprint_metrics\": {\n            \"total_issues\": total_sprint_issues,\n            \"done_issues\": total_done_issues,\n\n            \"completion_rate\": sprint_completion_rate,\n\n            \"total_story_points\": total_story_points,\n            \"completed_story_points\": completed_story_points,\n\n            \"story_point_completion_rate\": story_point_completion_rate,\n\n            \"todo_issues\": all_todo,\n            \"in_progress_issues\": all_in_progress,\n\n            \"sprint_health_score\": sprint_health_score\n        }\n    }\n})\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        640
+      ],
+      "id": "b7d2d5fa-f707-45b1-8523-54b4d66b187f",
+      "name": "Code in Python7"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1280,
+        784
+      ],
+      "id": "bcd6c9bf-257c-450a-942a-83cc078c1449",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "# n8n Python Code node\n# Input: _items\n# Output: rows ready for PostgreSQL insert\n\ndata = [item[\"json\"] for item in _items]\n\n# Find the sections in your mixed output\nassignee_items = [x for x in data if \"assignee\" in x and \"metrics\" in x]\nsprint_item = next((x for x in data if \"sprint_metrics\" in x), None)\nquality_item = next(\n    (x for x in data if \"discription_quality\" in x or \"description_quality\" in x),\n    None\n)\n\nrows = []\n\n# Assignee metrics rows\nfor user in assignee_items:\n    assignee = user.get(\"assignee\")\n    metrics = user.get(\"metrics\", {})\n\n    description_quality = None\n    log_quality = None\n\n    if quality_item:\n        description_quality = quality_item.get(\"description_quality\", quality_item.get(\"discription_quality\", {})).get(assignee)\n        log_quality = quality_item.get(\"log_quality\", {}).get(assignee)\n\n    rows.append({\n        \"json\": {\n            \"table\": \"assignee_metrics\",\n            \"assignee\": assignee,\n            \"total_issues\": metrics.get(\"total_issues\"),\n            \"done_issues\": metrics.get(\"done_issues\"),\n            \"in_progress_issues\": metrics.get(\"in_progress_issues\"),\n            \"todo_issues\": metrics.get(\"todo_issues\"),\n            \"completion_rate\": metrics.get(\"completion_rate\"),\n            \"story_points\": metrics.get(\"story_points\"),\n            \"completed_story_points\": metrics.get(\"completed_story_points\"),\n            \"healthy_issues_rate\": metrics.get(\"healthy_issues_rate\"),\n            \"risk_score\": metrics.get(\"risk_score\"),\n            \"risk_level\": metrics.get(\"risk_level\"),\n            \"description_quality\": description_quality,\n            \"log_quality\": log_quality,\n        }\n    })\n\n# Sprint metrics row\nif sprint_item:\n    sprint_metrics = sprint_item.get(\"sprint_metrics\", {})\n\n    rows.append({\n        \"json\": {\n            \"table\": \"sprint_metrics\",\n            \"total_issues\": sprint_metrics.get(\"total_issues\"),\n            \"done_issues\": sprint_metrics.get(\"done_issues\"),\n            \"completion_rate\": sprint_metrics.get(\"completion_rate\"),\n            \"total_story_points\": sprint_metrics.get(\"total_story_points\"),\n            \"completed_story_points\": sprint_metrics.get(\"completed_story_points\"),\n            \"story_point_completion_rate\": sprint_metrics.get(\"story_point_completion_rate\"),\n            \"todo_issues\": sprint_metrics.get(\"todo_issues\"),\n            \"in_progress_issues\": sprint_metrics.get(\"in_progress_issues\"),\n            \"sprint_health_score\": sprint_metrics.get(\"sprint_health_score\"),\n        }\n    })\n\n# Issue metrics rows\nfor user in assignee_items:\n    assignee = user.get(\"assignee\")\n    issues = user.get(\"issues\", [])\n\n    for issue in issues:\n        rows.append({\n            \"json\": {\n                \"table\": \"issue_metrics\",\n                \"assignee\": assignee,\n                \"issue_key\": issue.get(\"key\"),\n                \"summary\": issue.get(\"summary\"),\n                \"status\": issue.get(\"status\"),\n                \"issue_type\": issue.get(\"issue_type\"),\n                \"story_points\": issue.get(\"story_points\"),\n            }\n        })\n\nreturn rows"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        912
+      ],
+      "id": "a6f72a20-2c8a-4724-88cd-1746de2e846a",
+      "name": "Code in Python8"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.table }}",
+                    "rightValue": "assignee_metrics",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e9f69af7-62ee-4566-9d73-296d479cc860"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "assignee_metrics"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ed084452-30ac-4c3b-8c4c-33f1bbaae845",
+                    "leftValue": "={{ $json.table }}",
+                    "rightValue": "sprint_metrics",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sprint_metrics"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6b114e3a-c755-4a98-8ac2-46d2b4870330",
+                    "leftValue": "={{ $json.table }}",
+                    "rightValue": "issue_metrics",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "issue_metrics"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1664,
+        896
+      ],
+      "id": "2dd43689-054f-48cc-86e8-03484c5f2e25",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "assignee_metrics",
+          "mode": "list",
+          "cachedResultName": "assignee_metrics"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "total_issues": "={{ $json.total_issues }}",
+            "done_issues": "={{ $json.done_issues }}",
+            "in_progress_issues": "={{ $json.in_progress_issues }}",
+            "todo_issues": "={{ $json.todo_issues }}",
+            "completion_rate": "={{ $json.completion_rate }}",
+            "story_points": "={{ $json.story_points }}",
+            "completed_story_points": "={{ $json.completed_story_points }}",
+            "healthy_issues_rate": "={{ $json.healthy_issues_rate }}",
+            "risk_score": "={{ $json.risk_score }}",
+            "description_quality": "={{ $json.description_quality }}",
+            "log_quality": "={{ $json.log_quality }}",
+            "assignee": "={{ $json.assignee }}",
+            "risk_level": "={{ $json.risk_level }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_issues",
+              "displayName": "total_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "done_issues",
+              "displayName": "done_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "in_progress_issues",
+              "displayName": "in_progress_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "todo_issues",
+              "displayName": "todo_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completion_rate",
+              "displayName": "completion_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "story_points",
+              "displayName": "story_points",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_story_points",
+              "displayName": "completed_story_points",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "healthy_issues_rate",
+              "displayName": "healthy_issues_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_score",
+              "displayName": "risk_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description_quality",
+              "displayName": "description_quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "log_quality",
+              "displayName": "log_quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2160,
+        752
+      ],
+      "id": "95007f20-bceb-4427-a172-e5e5a50afb3d",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "issue_metrics",
+          "mode": "list",
+          "cachedResultName": "issue_metrics"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sprint_id",
+              "displayName": "sprint_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issue_key",
+              "displayName": "issue_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "issue_type",
+              "displayName": "issue_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "story_points",
+              "displayName": "story_points",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2160,
+        1104
+      ],
+      "id": "8c6e9112-8f0c-410b-9013-32727f518c3a",
+      "name": "Insert rows in a table2",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "sprint_metrics",
+          "mode": "list",
+          "cachedResultName": "sprint_metrics"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_issues",
+              "displayName": "total_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "done_issues",
+              "displayName": "done_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "in_progress_issues",
+              "displayName": "in_progress_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "todo_issues",
+              "displayName": "todo_issues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completion_rate",
+              "displayName": "completion_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "story_points",
+              "displayName": "story_points",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_score",
+              "displayName": "risk_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description_quality",
+              "displayName": "description_quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "log_quality",
+              "displayName": "log_quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2160,
+        928
+      ],
+      "id": "1ebab625-c4da-4f28-ab34-2409f99c5ada",
+      "name": "Insert rows in a table3",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": []
+        },
+        "includeOtherFields": true,
+        "include": "except",
+        "excludeFields": "table",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1904,
+        752
+      ],
+      "id": "eba8723f-6fe7-430b-9a46-b97f3621ace2",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": []
+        },
+        "includeOtherFields": true,
+        "include": "except",
+        "excludeFields": "table",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1904,
+        928
+      ],
+      "id": "dcfcb040-92d8-4c97-9604-52f15991c2f1",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": []
+        },
+        "includeOtherFields": true,
+        "include": "except",
+        "excludeFields": "table",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1904,
+        1104
+      ],
+      "id": "685beef8-3208-4a87-91df-47eaee13f8bd",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "content": "## Jira Log Quality Agent \nJira Log Quality Agent is an automated assistant that reviews Jira work logs for every contributor each day. \nIt analyzes the last 24 hours of activity, scores the quality of the logs, and provides clear feedback including strengths, \nweaknesses, and practical suggestions for improvement. It then comments directly on the related Jira task \nso the contributor can quickly see how to improve their updates and communication.",
+        "height": 592,
+        "width": 2960,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -624,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "4fc33aed-34d9-43da-b820-0edbbf90113c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS public.logs_review (\n    id SERIAL PRIMARY KEY,\n    sprint_id INTEGER,\n    issue_key TEXT,\n    assignee TEXT,\n    log_quality NUMERIC\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1616,
+        -48
+      ],
+      "id": "870b3821-9a0f-44b0-887f-912ad9fc6991",
+      "name": "create table",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jiraVersion": "serverPat",
+        "resource": "issueComment",
+        "issueKey": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Issue_Key', ``, 'string') }}",
+        "comment": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Comment', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.jiraTool",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        144
+      ],
+      "id": "021e8a03-d78e-46f5-b949-0106dc964b84",
+      "name": "Add a comment in Jira Software"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json}}",
+        "options": {
+          "systemMessage": "You are a Senior Project Manager and Scrum Master.\n\nYour task is to evaluate the quality of each Jira issue for a single assignee and return one final score for that assignee from 0 to 10.\n\nWhat to evaluate for each issue:\n1. Description quality\n   - Clear and specific goal\n   - Enough context to understand the work\n   - Actionable and not vague\n2. Definition of Ready (DoR) quality\n   - Clear prerequisites\n   - Dependencies or inputs are defined\n   - Team can realistically start the work\n3. Definition of Done (DoD) quality\n   - Completion criteria are measurable\n   - Testing, documentation, validation, or acceptance is clear\n   - The issue can be completed without ambiguity\n\nScoring rules for each issue:\n- 0–2: Very poor, missing or unusable description/DoR/DoD\n- 3–4: Weak, incomplete and vague\n- 5–6: intermediate, usable but missing important details\n- 7–8: Good, clear and mostly complete\n- 9–10: Excellent, very clear, testable, and well structured\n\nImportant:\n- Focus only on the quality of the issue content, not on the assignee’s performance.\n- If a section is missing, score it low.\n- If DoR or DoD are generic, vague, or not measurable, reduce the score.\n- If the issue has a clear description plus strong DoR and DoD, give a higher score.\n- Use the overall quality across all issues to produce one assignee score.\n\nAggregation rule:\n- Evaluate each issue individually first.\n- Then compute the assignee’s final score as the average of the issue scores, rounded to the nearest integer.\n- If all issues are weak, the assignee score should be low.\n- If most issues are strong, the score should be high.\n\nOutput format:\nReturn ONLY valid JSON in this exact format:\n\n{\n  \"<assignee name>\" : <integer from 0 to 10>\n}\n\nDo not add any explanation, markdown, or extra text."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        592,
+        832
+      ],
+      "id": "f3ff26c0-50be-4b06-bf0c-1d2c37aeab36",
+      "name": "Jira Sprint Report Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=sprint_id: {{ $json.sprint_id }}\nassignee: {{ $json.assignee }}\n{{ $json.user_message }}",
+        "options": {
+          "systemMessage": "You are a Jira Log Quality Review Assistant with access to Jira tools.\n\nYour responsibility is to evaluate the log quality of every Jira issue provided in the input.\n\n## Evaluation Criteria: Log Quality (0-10)\n\nAssess the issue based on:\n\n- Progress updates\n- Work logs\n- Technical clarity\n- Communication of blockers\n- Completion summary\n\n## Score from 0 to 10\n\n- 0 = no logs, updates, or evidence of progress\n- 10 = clear, detailed, consistent, and well-structured logs throughout the issue lifecycle\n\n## Critical Rule\n\n- If an issue has no logs, no updates, or no meaningful evidence of progress:\n  - Do NOT generate a review\n  - Do NOT add a Jira comment\n  - Do NOT include the issue in the final response\n  - Do absolutely nothing for that issue\n\nOnly process issues that contain meaningful logs or updates.\n\n## For each valid issue\n\nGenerate a Jira comment in this format:\n\nAI Log Quality Review\n\nScore\nLog Quality: X/10\n\nSummary\n<short evaluation>\n\nRecommended Improvements\n\n1. improvement 1\n2. improvement 2\n3. improvement 3\n\n## Tool Usage (Important)\n\nFor every valid issue:\n\n- Use the attached Jira tool to add the generated review as a comment on the same Jira issue\n- Use the issue key from the input, for example MIM-15\n- The entire generated review must be posted as the Jira comment\n- Do not ask the user for confirmation\n\n## Final JSON summary\n\nAfter the Jira comment has been successfully created, return ONLY valid JSON:\n\n```json\n{\n  \"sprint_id\": 3,\n  \"issue_key\": \"MIM-6\",\n  \"assignee\": \"mimtheking\",\n  \"log_quality\": 4,\n}\n```\n\nRequirements:\n\n* Return ONLY valid JSON.\n* Return ONLY if comment added to jira and dont generate Final JSON summary if comment not added.\n* If the issue has no meaningful logs or updates, return nothing.\n* `sprint_id` must come from the input.\n* `issue_key` must be the Jira issue key.\n* `assignee` must come from the input.\n* `log_quality` must be an integer between 0 and 10.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1008,
+        -48
+      ],
+      "id": "30726c52-3ce9-4fba-858c-b3e77afdcce0",
+      "name": "Jira Log Quality Agent"
+    },
+    {
+      "parameters": {
+        "content": "## Jira Sprint Health Dashboard \nJira Sprint Health Dashboard is an automated reporting and analytics solution that runs when a Jira sprint is closed. It collects sprint data, evaluates team performance, \nanalyzes worklog and issue quality, calculates sprint health and risk metrics, and presents the results in a Grafana dashboard. The platform provides a clear overview of \nsprint outcomes, helping teams track progress, identify risks, and improve future sprint performance.\n\n",
+        "height": 1040,
+        "width": 2976,
+        "color": "#D1E2F5"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -624,
+        384
+      ],
+      "typeVersion": 1,
+      "id": "e8e6e97c-cb9a-4c31-a26f-93368bfb7c2a",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "jiraVersion": "serverPat",
+        "events": [
+          "sprint_closed"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.jiraTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        992
+      ],
+      "id": "ca29b8fc-0fa8-48d6-a06e-304420a549ae",
+      "name": "Jira Sprint Closed Trigger",
+      "webhookId": "324a0731-4b94-487e-8b4e-1fdffb9d98c9",
+      "credentials": {
+        "jiraSoftwareServerPatApi": {
+          "id": "5M211njPu5jUDT6C",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS sprint_metrics (\n    id SERIAL PRIMARY KEY,\n    created_at TIMESTAMP DEFAULT NOW(),\n\n    -- sprint_id INTEGER,\n\n    total_issues INTEGER,\n    done_issues INTEGER,\n    completion_rate NUMERIC,\n\n    total_story_points NUMERIC,\n    completed_story_points NUMERIC,\n    story_point_completion_rate NUMERIC,\n\n    todo_issues INTEGER,\n    in_progress_issues INTEGER,\n\n    sprint_health_score NUMERIC\n);\n\nCREATE TABLE IF NOT EXISTS assignee_metrics (\n    id SERIAL PRIMARY KEY,\n    created_at TIMESTAMP DEFAULT NOW(),\n\n    -- sprint_id INTEGER,\n    assignee TEXT,\n\n    total_issues INTEGER,\n    done_issues INTEGER,\n    in_progress_issues INTEGER,\n    todo_issues INTEGER,\n\n    completion_rate NUMERIC,\n\n    story_points NUMERIC,\n    completed_story_points NUMERIC,\n\n    healthy_issues_rate NUMERIC,\n\n    risk_score NUMERIC,\n    risk_level TEXT,\n\n    description_quality NUMERIC,\n    log_quality NUMERIC\n);\n\nCREATE TABLE IF NOT EXISTS issue_metrics (\n    id SERIAL PRIMARY KEY,\n    created_at TIMESTAMP DEFAULT NOW(),\n\n    -- sprint_id INTEGER,\n\n    assignee TEXT,\n\n    issue_key TEXT,\n    summary TEXT,\n\n    status TEXT,\n    issue_type TEXT,\n\n    story_points NUMERIC\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1456,
+        688
+      ],
+      "id": "555ab3c4-f6e8-4056-adb4-209c30f93767",
+      "name": "create table1",
+      "credentials": {
+        "postgres": {
+          "id": "avkDjYBnfkF2vosW",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get many issues": {
+      "main": [
+        [
+          {
+            "node": "Code in Python",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Jira Log Quality Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Get many issues",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "get active sprint id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code in Python1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get an issue": {
+      "main": [
+        [
+          {
+            "node": "Code in Python2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python1": {
+      "main": [
+        [
+          {
+            "node": "Get an issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "get last sprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get last sprint": {
+      "main": [
+        [
+          {
+            "node": "Get last sprint issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get last sprint issues": {
+      "main": [
+        [
+          {
+            "node": "Code in Python3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python3": {
+      "main": [
+        [
+          {
+            "node": "Jira Sprint Report Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in Python7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get active sprint id": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Jira Log Quality Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        []
+      ]
+    },
+    "Code in Python4": {
+      "main": [
+        [
+          {
+            "node": "create table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Code in Python5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Jira Sprint Report Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python5": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in Python6": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python7": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "create table1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in Python8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python8": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create table": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add a comment in Jira Software": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jira Log Quality Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira Sprint Report Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in Python6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira Log Quality Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in Python4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira Sprint Closed Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create table1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "92b3e163-9115-4db3-83da-c374bbdf1333",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "929d7d5d6f7e5a3216ab96a60274d487a9682a99a472a0ba1686816e117e2ebf"
+  },
+  "id": "mb5L5XEV7ZcJ9uqo",
+  "tags": []
+}
