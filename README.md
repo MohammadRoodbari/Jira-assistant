@@ -13,8 +13,6 @@ An automated reporting solution that runs when a Jira sprint is closed. It colle
 ## Included Files
 - `workflow/` — n8n workflow files
 - `dashboard-grafana.json` — Grafana dashboard configuration
-- `screenshots/dashboard.png` — dashboard preview
-- `screenshots/workflow.png` — workflow preview
 
 ## Screenshots
 ![Workflow](screenshots/workflow.png)
